@@ -1,6 +1,7 @@
 -- Emmanuelle Pilon ( Matricule : 20270418 )
 -- TP-1  --- Implantation d'une sorte de Lisp          -*- coding: utf-8 -*-
 {-# OPTIONS_GHC -Wall #-} 
+{-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 --
 -- Ce fichier défini les fonctionalités suivantes:
 -- - Analyseur lexical
@@ -191,9 +192,13 @@ data Lexp = Lnum Int             -- Constante entière.
 
 -- Première passe simple qui analyse une Sexp et construit une Lexp équivalente.
 s2l :: Sexp -> Lexp
+
 s2l (Snum n) = Lnum n
+
 s2l (Ssym s) = Lvar s
--- ¡¡COMPLÉTER ICI!!
+
+s2l (Snode (Ssym "if") [cond, e1, e2]) = Ltest (s2l cond) (s2l e1) (s2l e2)
+
 s2l se = error ("Expression Psil inconnue: " ++ showSexp se)
 
 ---------------------------------------------------------------------------
@@ -239,8 +244,16 @@ env0 = let binop f op =
 ---------------------------------------------------------------------------
 
 eval :: VEnv -> Lexp -> Value
--- ¡¡ COMPLETER !!
+-- Évaluation des entiers
 eval _ (Lnum n) = Vnum n
+
+-- Évaluation des booléens
+eval _ (Lbool b) = Vbool b
+
+-- Évaluation des variables
+eval env (Lvar v) = case lookup v env of
+                      Just val -> val
+                      Nothing -> error ("Variable inconnue: " ++ v)
                   
 ---------------------------------------------------------------------------
 -- Toplevel                                                              --
