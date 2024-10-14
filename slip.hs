@@ -1,4 +1,4 @@
--- Emmanuelle Pilon ( Matricule : 20270418 )
+-- Emmanuelle Pilon ( Matricule : 20270418 ) et Árpád-Botond Rigó (20241538)
 -- TP-1  --- Implantation d'une sorte de Lisp          -*- coding: utf-8 -*-
 {-# OPTIONS_GHC -Wall #-} 
 --
@@ -180,20 +180,84 @@ type Var = String
 data Lexp = Lnum Int             -- Constante entière.
           | Lbool Bool           -- Constante Booléenne.
           | Lvar Var             -- Référence à une variable.
-          | Ltest Lexp Lexp Lexp -- Expression conditionelle. ( comme un if (expression qui retourne bool) (expression si true) (expression si false) )
-          | Lfob [Var] Lexp      -- Construction de fobjet. ([args] body)
+          | Ltest Lexp Lexp Lexp -- Expression conditionelle.
+          | Lfob [Var] Lexp      -- Construction de fobjet. 
           | Lsend Lexp [Lexp]    -- Appel de fobjet.
-          | Llet Var Lexp Lexp   -- Déclaration non-récursive. (comme un 'let' .. 'in')
+          | Llet Var Lexp Lexp   -- Déclaration non-récursive. 
           -- Déclaration d'une liste de variables qui peuvent être
-          -- mutuellement récursives. (comme un 'let' de haskiell)
+          -- mutuellement récursives. (comme un 'let' de haskell)
           | Lfix [(Var, Lexp)] Lexp
           deriving (Show, Eq)
 
--- Première passe simple qui analyse une Sexp et construit une Lexp équivalente.
+-- Première passe simple qui analyse une Sexp et construit une Lexp 
+-- équivalente.
 s2l :: Sexp -> Lexp
+
+-- Un entier
 s2l (Snum n) = Lnum n
+
+-- Un booléen "true"
+s2l (Ssym "true") = Lbool True
+
+-- Un booléen "false"
+s2l (Ssym "false") = Lbool False
+
+-- Une variable
 s2l (Ssym s) = Lvar s
--- ¡¡COMPLÉTER ICI!!
+
+-- Une condition "if"
+s2l (Snode (Ssym "if") [cond, e1, e2]) = 
+    Ltest (s2l cond) (s2l e1) (s2l e2)
+
+-- Une déclaration "let"
+s2l (Snode (Ssym "let") [Ssym x, e1, e2]) = Llet x (s2l e1) (s2l e2)
+
+-- Une fonction de cas récursif "fix"
+s2l (Snode (Ssym "fix") [declsNode, body]) =
+    let decls = sexpToList declsNode
+    in Lfix (map parseDecl decls) (s2l body)
+  where
+    -- Transformer la déclaration Sexp vers un tuple afin de le 
+    -- passer vers le constructeur 'Lfix' 
+    parseDecl :: Sexp -> (Var, Lexp)
+    -- La déclaration: (x e)
+    parseDecl (Snode (Ssym x) [e]) = (x, s2l e)
+    -- La fonction déclarée: ((x x1 ... xn) e)
+    parseDecl (Snode (Snode (Ssym x) params) [e]) =
+        let params' = map fromSsym params
+        in (x, Lfob params' (s2l e))
+    parseDecl se = error ("Déclaration non-valide: " ++ showSexp se)
+
+    -- Convertir la liste de paramètres en type Var (string) pour la
+    -- représentation Lexp
+    fromSsym :: Sexp -> Var
+    fromSsym (Ssym s) = s
+    fromSsym se = error ("Mauvais symbole, reçu: " ++ showSexp se)
+
+    -- Convertir une liste de type Sexp à une liste de type Haskell 
+    -- avec des éléments de types Sexp
+    sexpToList :: Sexp -> [Sexp]
+    sexpToList Snil = []
+    sexpToList (Snode h t) = h : t
+    sexpToList se = error ("Mauvaise liste, reçu: " ++ showSexp se)
+
+-- Une fonction
+s2l (Snode (Ssym "fob") [paramsNode, e]) =
+    let
+        params = case paramsNode of
+                    Snil -> []
+                    Snode h t -> map fromSsym (h : t)
+                    Ssym s -> [s]
+                    _ -> error ("Paramètre non-valide dans fob: "
+                     ++ showSexp paramsNode)
+    in Lfob params (s2l e)
+  where
+    fromSsym (Ssym s) = s
+    fromSsym se = error ("Mauvais symbole, reçu: " ++ showSexp se)
+
+-- Un appel de fonction 
+s2l (Snode func args) = Lsend (s2l func) (map s2l args)
+
 s2l se = error ("Expression Psil inconnue: " ++ showSexp se)
 
 ---------------------------------------------------------------------------
@@ -216,32 +280,91 @@ type VEnv = [(Var, Value)]
 
 -- L'environnement initial qui contient les fonctions prédéfinies.
 env0 :: VEnv
-env0 = let binop f op =
+env0 = let
+          binop f op =
               Vbuiltin (\vs -> case vs of
                          [Vnum n1, Vnum n2] -> f (n1 `op` n2)
                          [_, _] -> error "Pas un nombre"
                          _ -> error "Nombre d'arguments incorrect")
+          -- La fonction 'eqop' est utilisée pour redéfinir l'opérateur 
+          -- '=' pour qu'il puisse évaluer la comparaison des nombre
+          -- (dans le 1er cas Vnum) et celui de deux bouléen (2eme cas)
+          -- pour une plus grande justification, voir le rapport.
+          eqop =
+              Vbuiltin (\vs -> case vs of
+                         [Vnum n1, Vnum n2] -> Vbool (n1 == n2)
+                         [Vbool b1, Vbool b2] -> Vbool (b1 == b2)
+                         [_, _] -> 
+                            error "Impossible de comparer ces valeurs"
+                         _ -> error "Nombre d'arguments incorrect")
+      in
+        [ ("+", binop Vnum (+)),
+          ("*", binop Vnum (*)),
+          ("/", binop Vnum div),
+          ("-", binop Vnum (-)),
+          ("<", binop Vbool (<)),
+          (">", binop Vbool (>)),
+          ("<=", binop Vbool (<=)),  -- Remplacement de '≤' avec '<='
+          (">=", binop Vbool (>=)),  -- Remplacment de  '≥' avec '>='
+          ("=", eqop),               -- Fonction eqop qui s'occupe de ce cas
+          ("true", Vbool True),
+          ("false", Vbool False)]
 
-          in [("+", binop Vnum (+)),
-              ("*", binop Vnum (*)),
-              ("/", binop Vnum div),
-              ("-", binop Vnum (-)),
-              ("<", binop Vbool (<)),
-              (">", binop Vbool (>)),
-              ("≤", binop Vbool (<=)),
-              ("≥", binop Vbool (>=)),
-              ("=", binop Vbool (==)),
-              ("true",  Vbool True),
-              ("false", Vbool False)]
 
 ---------------------------------------------------------------------------
 -- Évaluateur                                                            --
 ---------------------------------------------------------------------------
 
+-- Évaluateur
 eval :: VEnv -> Lexp -> Value
--- ¡¡ COMPLETER !!
+
+-- Évaluation des entiers
 eval _ (Lnum n) = Vnum n
-                  
+
+-- Évaluation des booléens
+eval _ (Lbool b) = Vbool b
+
+-- Évaluation d'une déclaration de variable
+eval env (Lvar x) = case lookup x env of
+  Just v  -> v
+  Nothing -> error ("Variable mal définie: " ++ x)
+
+-- Évaluation d'expression conditionnelle
+eval env (Ltest cond e2 e3) =
+  case eval env cond of
+    Vbool True  -> eval env e2
+    Vbool False -> eval env e3
+    _           -> error "La condition n'est pas booléen"
+
+-- Évaluation d'un fonction
+eval env (Lfob params body) = Vfob env params body
+
+-- Évaluation d'un appel de fonction
+eval env (Lsend efunc args) =
+  let vfunc = eval env efunc
+      vargs = map (eval env) args
+  in case vfunc of
+       Vbuiltin f -> f vargs
+       Vfob closure params body ->
+         if length params /= length vargs then
+           error "Mauvais nombre d'arguments"
+         else
+           let env' = zip params vargs ++ closure
+           in eval env' body
+       _ -> error "Valeur n'est pas une fonction"
+
+-- Évaluation d'une déclaration "let"
+eval env (Llet x e1 e2) =
+  let v1 = eval env e1
+      env' = (x, v1) : env
+  in eval env' e2
+
+-- Évaluation d'une déclaration récursive "fix"
+eval env (Lfix defs body) =
+  let env' = recEnv ++ env
+      recEnv = [(x, eval env' e) | (x, e) <- defs]
+  in eval env' body
+
 ---------------------------------------------------------------------------
 -- Toplevel                                                              --
 ---------------------------------------------------------------------------
@@ -273,6 +396,7 @@ valOf :: String -> Value
 valOf = evalSexp . sexpOf
 
 -- Parce que j'utilise GHC
-main :: IO ()
-main = run "exemples.slip"
 
+-- Fonction main
+main :: IO ()
+main = run "tests.slip"
