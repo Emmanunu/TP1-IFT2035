@@ -1,4 +1,4 @@
-;;; Emmanuelle Pilon ( Matricule : 20270418 )   -*- mode: lisp-data; coding: utf-8 -*-
+;;; Emmanuelle Pilon ( Matricule : 20270418 )  et Árpád-Botond Rigó (20241538)  -*- mode: lisp-data; coding: utf-8 -*-
 
 (+ 2 3)                                         ; devrait retourner 5
 (let x 5 (+ x 3))                               ; devrait retourner 8
@@ -6,4 +6,4 @@
 ((fob (x) (+ x 1)) 4)                           ; devrait retourner 5
 (fix (((even x) (if (= x 0) true (odd (- x 1))))
       ((odd x) (if (= x 0) false (even (- x 1)))))
- (even 4))                                      ; devrait retourner true
+ (even 4))                                      ; devrait retourner True
