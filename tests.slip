@@ -1,9 +1,32 @@
-;;; Emmanuelle Pilon ( Matricule : 20270418 )   -*- mode: lisp-data; coding: utf-8 -*-
+;;; tests.slip
+;;; Emmanuelle Pilon ( Matricule : 20270418 ) et Árpád-Botond Rigó ( Matricule : 20241538 ) 
+;;; -*- mode: lisp-data; coding: utf-8 -*-
 
-(+ 2 3)                                         ; devrait retourner 5
+;; Test des opérations arithmétiques de base
+(- 10 4)                                        ; devrait retourner 6
+(* 6 7)                                         ; devrait retourner 42
+(/ (* (- 68 32) 5) 9)                           ; devrait retourner 20
+
+;; Test de la déclaration de variable avec 'let'
 (let x 5 (+ x 3))                               ; devrait retourner 8
-(if true 42 0)                                  ; devrait retourner 42
+(let y 10 (* y 2))                              ; devrait retourner 20
+
+;; Test des expressions conditionnelles avec 'if'
+(if (= 4 4) 100 200)                             ; devrait retourner 100
+(if (= 5 10) 100 200)                            ; devrait retourner 200
+
+;; Test de l'application de fonctions avec 'fob'
 ((fob (x) (+ x 1)) 4)                           ; devrait retourner 5
-(fix (((even x) (if (= x 0) true (odd (- x 1))))
-      ((odd x) (if (= x 0) false (even (- x 1)))))
- (even 4))                                      ; devrait retourner true
+((fob (x y) (* x y)) 3 4)                       ; devrait retourner 12
+
+;; Test de la définition récursive avec 'fix' pour calculer la factorielle
+(fix (((factorial n) (if (= n 0) 1 (* n (factorial (- n 1))))))
+ (factorial 5))                                 ; devrait retourner 120
+
+;; Test de la définition récursive avec 'fix' pour calculer des doubles et triples
+(fix (((double x) (* 2 x))
+      ((triple x) (* 3 x)))
+ (double 4))                                    ; devrait retourner 8
+(fix (((double x) (* 2 x))
+      ((triple x) (* 3 x)))
+ (triple 4))                                    ; devrait retourner 12
